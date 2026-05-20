@@ -26,16 +26,28 @@ type Props = {
 
 function DemoCardStep({ donorId, onComplete }: { donorId: string; onComplete: () => void }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleDemo() {
     setLoading(true);
-    const res = await fetch("/api/donors/complete-signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ donorId, stripePaymentMethodId: "demo_pm_simulated" }),
-    });
-    if (res.ok) onComplete();
-    else setLoading(false);
+    setError("");
+    try {
+      const res = await fetch("/api/donors/complete-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ donorId, stripePaymentMethodId: "demo_pm_simulated" }),
+      });
+      if (res.ok) {
+        onComplete();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? `Server error (${res.status}). Please try again.`);
+        setLoading(false);
+      }
+    } catch (err) {
+      setError("Network error. Please check your connection and try again.");
+      setLoading(false);
+    }
   }
 
   return (
@@ -47,6 +59,11 @@ function DemoCardStep({ donorId, onComplete }: { donorId: string; onComplete: ()
           Stripe is not connected. Click the button below to simulate a card being saved and complete your enrollment.
         </p>
       </div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+          {error}
+        </div>
+      )}
       <button
         onClick={handleDemo}
         disabled={loading}

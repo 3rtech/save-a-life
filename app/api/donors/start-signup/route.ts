@@ -19,6 +19,7 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  try {
   const body = await req.json();
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
@@ -82,4 +83,11 @@ export async function POST(req: NextRequest) {
   });
 
   return NextResponse.json({ donorId: donor.id, clientSecret });
+  } catch (err) {
+    console.error("[start-signup] error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
 }
