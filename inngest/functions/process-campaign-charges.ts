@@ -3,9 +3,8 @@ import { db } from "@/lib/db";
 import { calculateDonorChargeAmount } from "@/lib/charge-calculator";
 import { chargeOffSession } from "@/lib/stripe";
 import {
-  sendChargeSuccessSMS,
-  sendChargeSuccessEmail,
-  sendChargeFailedSMS,
+  sendChargeSuccessNotifications,
+  sendChargeFailedNotifications,
 } from "@/lib/notifications";
 import { createAuditLog } from "@/lib/audit";
 
@@ -125,7 +124,7 @@ export const processCampaignCharges = inngest.createFunction(
 
           const campaign = await db.emergencyCampaign.findUnique({
             where: { id: campaignId },
-            select: { title: true, privacyLevel: true },
+            select: { title: true, privacyLevel: true, publicMessage: true },
           });
 
           const campaignTitle =
@@ -133,24 +132,24 @@ export const processCampaignCharges = inngest.createFunction(
               ? "Anonymous Emergency Case"
               : (campaign?.title ?? "Emergency Case");
 
-          if (donor.phone) {
-            await sendChargeSuccessSMS({
-              phone: donor.phone,
-              amountCents: decision.amountCents,
-              donorId: donor.id,
-              campaignId,
-              chargeId: charge.id,
-            });
-          }
+          const caseDescription =
+            campaign?.privacyLevel === "internal_only"
+              ? null
+              : (campaign?.publicMessage ?? null);
 
-          await sendChargeSuccessEmail({
-            email: donor.email,
-            firstName: donor.firstName,
+          await sendChargeSuccessNotifications({
+            donor: {
+              id: donor.id,
+              email: donor.email,
+              firstName: donor.firstName,
+              phone: donor.phone,
+              notificationPreference: donor.notificationPreference,
+            },
             amountCents: decision.amountCents,
-            campaignTitle,
-            donorId: donor.id,
             campaignId,
             chargeId: charge.id,
+            campaignTitle,
+            caseDescription,
           });
         } catch (err: unknown) {
           const errorMessage = err instanceof Error ? err.message : "Unknown error";
@@ -162,16 +161,19 @@ export const processCampaignCharges = inngest.createFunction(
             },
           });
 
-          if (donor.phone) {
-            await sendChargeFailedSMS({
+          await sendChargeFailedNotifications({
+            donor: {
+              id: donor.id,
+              email: donor.email,
+              firstName: donor.firstName,
               phone: donor.phone,
-              amountCents: decision.amountCents,
-              donorId: donor.id,
-              campaignId,
-              chargeId: charge.id,
-              updatePaymentUrl: `${process.env.NEXT_PUBLIC_APP_URL}/donor/update-payment/${donor.id}`,
-            });
-          }
+              notificationPreference: donor.notificationPreference,
+            },
+            amountCents: decision.amountCents,
+            campaignId,
+            chargeId: charge.id,
+            updatePaymentUrl: `${process.env.NEXT_PUBLIC_APP_URL}/donor/update-payment/${donor.id}`,
+          });
         }
       });
     }

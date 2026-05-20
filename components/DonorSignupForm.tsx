@@ -185,6 +185,7 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
     monthlyCap: prefill.monthlyCap ?? "",
     annualCap: "",
     allowPartialCharge: false,
+    notificationPreference: "email" as "email" | "sms" | "both",
     consentCard: false,
     consentAuthorization: false,
   });
@@ -211,6 +212,7 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
           monthlyCapCents: Math.round(parseFloat(form.monthlyCap) * 100),
           annualCapCents: form.annualCap ? Math.round(parseFloat(form.annualCap) * 100) : null,
           allowPartialCharge: form.allowPartialCharge,
+          notificationPreference: form.notificationPreference,
           inviteToken,
           groupSlug,
         }),
@@ -382,6 +384,37 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
                     Allow partial charges if my remaining limit is less than my per-emergency amount
                   </span>
                 </label>
+              </div>
+
+              <div className="border-t border-slate-200 pt-4">
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">
+                  How should we notify you when your card is charged?
+                </h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["email", "sms", "both"] as const).map((opt) => {
+                    const labels = { email: "Email only", sms: "Text only", both: "Email & Text" };
+                    const active = form.notificationPreference === opt;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setForm((f) => ({ ...f, notificationPreference: opt }))}
+                        className={`py-2 px-3 rounded-lg border text-sm font-medium transition-colors ${
+                          active
+                            ? "bg-blue-800 border-blue-800 text-white"
+                            : "border-slate-300 text-slate-600 hover:border-blue-400"
+                        }`}
+                      >
+                        {labels[opt]}
+                      </button>
+                    );
+                  })}
+                </div>
+                {(form.notificationPreference === "sms" || form.notificationPreference === "both") && !form.phone && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    A cell phone number is required for text notifications.
+                  </p>
+                )}
               </div>
 
               <div className="border-t border-slate-200 pt-4 space-y-3">

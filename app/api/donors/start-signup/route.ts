@@ -14,6 +14,7 @@ const schema = z.object({
   monthlyCapCents: z.number().int().min(100),
   annualCapCents: z.number().int().optional().nullable(),
   allowPartialCharge: z.boolean(),
+  notificationPreference: z.enum(["email", "sms", "both"]).default("email"),
   inviteToken: z.string().optional(),
   groupSlug: z.string().optional(),
 });
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
       monthlyCapCents: data.monthlyCapCents,
       annualCapCents: data.annualCapCents,
       allowPartialCharge: data.allowPartialCharge,
+      notificationPreference: data.notificationPreference,
       status: "pending",
       inviteId,
       donorGroupId,

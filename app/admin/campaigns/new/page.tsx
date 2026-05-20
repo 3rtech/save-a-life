@@ -179,15 +179,18 @@ export default function NewCampaignPage() {
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">
-            Public Donor Message (optional)
+            Brief Case Description <span className="text-slate-400 font-normal">(included in donor notifications)</span>
           </label>
           <textarea
             value={form.publicMessage}
             onChange={(e) => setForm((f) => ({ ...f, publicMessage: e.target.value }))}
             rows={2}
             className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-            placeholder="A member of our community requires immediate care..."
+            placeholder="A member of our community requires immediate intervention for substance abuse treatment..."
           />
+          <p className="text-xs text-slate-400 mt-1">
+            This message is sent to donors via email or text when their card is charged. Keep it brief and respect privacy. Not shown if Privacy Level is set to &quot;Internal Only&quot;.
+          </p>
         </div>
 
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">

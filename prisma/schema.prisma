@@ -88,6 +88,7 @@ model Donor {
   donorGroupId          String?   @map("donor_group_id") @db.Uuid
   signupSource          String?   @map("signup_source")
   originalInviteToken   String?   @map("original_invite_token")
+  notificationPreference String   @default("email") @map("notification_preference")
   consentVersion        String?   @map("consent_version")
   consentTimestamp      DateTime? @map("consent_timestamp")
   consentIpAddress      String?   @map("consent_ip_address")
