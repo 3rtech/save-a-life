@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Admin {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  email            String   @unique
+  phone            String?
+  passwordHash     String   @map("password_hash")
+  role             String   @default("admin")
+  twoFactorEnabled Boolean  @default(false) @map("two_factor_enabled")
+  status           String   @default("active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  invitesCreated     DonorInvite[]       @relation("InviteCreatedBy")
+  donorGroupsCreated DonorGroup[]        @relation("GroupCreatedBy")
+  campaignsCreated   EmergencyCampaign[] @relation("CampaignCreatedBy")
+  campaignsApproved  EmergencyCampaign[] @relation("CampaignApprovedBy")
+  auditLogs          AuditLog[]
+
+  @@map("admins")
+}
+
+model DonorGroup {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  description      String?
+  sourceLabel      String?  @map("source_label")
+  slug             String?  @unique
+  createdByAdminId String?  @map("created_by_admin_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  createdBy Admin?        @relation("GroupCreatedBy", fields: [createdByAdminId], references: [id])
+  invites   DonorInvite[]
+  donors    Donor[]
+
+  @@map("donor_groups")
+}
+
+model DonorInvite {
+  id                           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inviteToken                  String    @unique @map("invite_token")
+  inviteType                   String    @map("invite_type")
+  donorGroupId                 String?   @map("donor_group_id") @db.Uuid
+  invitedFirstName             String?   @map("invited_first_name")
+  invitedLastName              String?   @map("invited_last_name")
+  invitedEmail                 String?   @map("invited_email")
+  invitedPhone                 String?   @map("invited_phone")
+  suggestedPerEmergencyAmountCents Int?  @map("suggested_per_emergency_amount_cents")
+  suggestedMonthlyCapCents     Int?      @map("suggested_monthly_cap_cents")
+  suggestedAnnualCapCents      Int?      @map("suggested_annual_cap_cents")
+  status                       String    @default("active")
+  expiresAt                    DateTime? @map("expires_at")
+  createdByAdminId             String?   @map("created_by_admin_id") @db.Uuid
+  usedByDonorId                String?   @map("used_by_donor_id") @db.Uuid
+  usedAt                       DateTime? @map("used_at")
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
+
+  createdBy  Admin?      @relation("InviteCreatedBy", fields: [createdByAdminId], references: [id])
+  donorGroup DonorGroup? @relation(fields: [donorGroupId], references: [id])
+  donors     Donor[]
+
+  @@map("donor_invites")
+}
+
+model Donor {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstName             String    @map("first_name")
+  lastName              String    @map("last_name")
+  email                 String
+  phone                 String?
+  stripeCustomerId      String?   @map("stripe_customer_id")
+  stripePaymentMethodId String?   @map("stripe_payment_method_id")
+  perEmergencyAmountCents Int     @map("per_emergency_amount_cents")
+  monthlyCapCents       Int       @map("monthly_cap_cents")
+  annualCapCents        Int?      @map("annual_cap_cents")
+  allowPartialCharge    Boolean   @default(false) @map("allow_partial_charge")
+  status                String    @default("pending")
+  inviteId              String?   @map("invite_id") @db.Uuid
+  donorGroupId          String?   @map("donor_group_id") @db.Uuid
+  signupSource          String?   @map("signup_source")
+  originalInviteToken   String?   @map("original_invite_token")
+  consentVersion        String?   @map("consent_version")
+  consentTimestamp      DateTime? @map("consent_timestamp")
+  consentIpAddress      String?   @map("consent_ip_address")
+  consentUserAgent      String?   @map("consent_user_agent")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  invite        DonorInvite?        @relation(fields: [inviteId], references: [id])
+  donorGroup    DonorGroup?         @relation(fields: [donorGroupId], references: [id])
+  charges       Charge[]
+  notifications DonorNotification[]
+
+  @@map("donors")
+}
+
+model EmergencyCampaign {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String
+  internalCaseId    String?   @map("internal_case_id")
+  description       String?
+  publicMessage     String?   @map("public_message")
+  targetAmountCents Int       @map("target_amount_cents")
+  urgencyLevel      String    @map("urgency_level")
+  expenseCategory   String?   @map("expense_category")
+  privacyLevel      String    @default("anonymous") @map("privacy_level")
+  status            String    @default("draft")
+  createdByAdminId  String?   @map("created_by_admin_id") @db.Uuid
+  approvedByAdminId String?   @map("approved_by_admin_id") @db.Uuid
+  adminCertified    Boolean   @default(false) @map("admin_certified")
+  activatedAt       DateTime? @map("activated_at")
+  closedAt          DateTime? @map("closed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  createdBy     Admin?              @relation("CampaignCreatedBy", fields: [createdByAdminId], references: [id])
+  approvedBy    Admin?              @relation("CampaignApprovedBy", fields: [approvedByAdminId], references: [id])
+  charges       Charge[]
+  notifications DonorNotification[]
+
+  @@map("emergency_campaigns")
+}
+
+model Charge {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donorId               String    @map("donor_id") @db.Uuid
+  campaignId            String    @map("campaign_id") @db.Uuid
+  attemptedAmountCents  Int       @map("attempted_amount_cents")
+  chargedAmountCents    Int?      @map("charged_amount_cents")
+  status                String
+  skipReason            String?   @map("skip_reason")
+  stripePaymentIntentId String?   @map("stripe_payment_intent_id")
+  stripeChargeId        String?   @map("stripe_charge_id")
+  failureReason         String?   @map("failure_reason")
+  chargedAt             DateTime? @map("charged_at")
+  refundedAt            DateTime? @map("refunded_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  donor         Donor              @relation(fields: [donorId], references: [id])
+  campaign      EmergencyCampaign  @relation(fields: [campaignId], references: [id])
+  notifications DonorNotification[]
+
+  @@unique([donorId, campaignId])
+  @@map("charges")
+}
+
+model DonorNotification {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  donorId          String?   @map("donor_id") @db.Uuid
+  campaignId       String?   @map("campaign_id") @db.Uuid
+  chargeId         String?   @map("charge_id") @db.Uuid
+  notificationType String    @map("notification_type")
+  channel          String
+  status           String    @default("pending")
+  messageBody      String?   @map("message_body")
+  providerMessageId String?  @map("provider_message_id")
+  sentAt           DateTime? @map("sent_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  donor    Donor?             @relation(fields: [donorId], references: [id])
+  campaign EmergencyCampaign? @relation(fields: [campaignId], references: [id])
+  charge   Charge?            @relation(fields: [chargeId], references: [id])
+
+  @@map("donor_notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId    String?  @map("admin_id") @db.Uuid
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id") @db.Uuid
+  metadata   Json?
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  admin Admin? @relation(fields: [adminId], references: [id])
+
+  @@map("audit_logs")
+}
