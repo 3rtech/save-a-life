@@ -3,14 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { loadStripe } from "@stripe/stripe-js";
-import {
-  Elements,
-  CardElement,
-  useStripe,
-  useElements,
-} from "@stripe/react-stripe-js";
+import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+const isDemoMode = !process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = isDemoMode ? null : loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 type Prefill = {
   firstName?: string;
@@ -28,13 +24,41 @@ type Props = {
   prefill: Prefill;
 };
 
-function CardSetupStep({
-  donorId,
-  onComplete,
-}: {
-  donorId: string;
-  onComplete: () => void;
-}) {
+function DemoCardStep({ donorId, onComplete }: { donorId: string; onComplete: () => void }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleDemo() {
+    setLoading(true);
+    const res = await fetch("/api/donors/complete-signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ donorId, stripePaymentMethodId: "demo_pm_simulated" }),
+    });
+    if (res.ok) onComplete();
+    else setLoading(false);
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 text-center">
+        <div className="text-2xl mb-2">🧪</div>
+        <p className="text-sm font-semibold text-amber-900 mb-1">Demo Mode — No real card needed</p>
+        <p className="text-sm text-amber-800">
+          Stripe is not connected. Click the button below to simulate a card being saved and complete your enrollment.
+        </p>
+      </div>
+      <button
+        onClick={handleDemo}
+        disabled={loading}
+        className="w-full bg-blue-800 hover:bg-blue-900 disabled:opacity-60 text-white font-semibold py-3 rounded-lg transition-colors"
+      >
+        {loading ? "Saving..." : "Simulate Card Saved"}
+      </button>
+    </div>
+  );
+}
+
+function RealCardStep({ donorId, onComplete }: { donorId: string; onComplete: () => void }) {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
@@ -89,18 +113,12 @@ function CardSetupStep({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-2">
-          Card Details
-        </label>
+        <label className="block text-sm font-medium text-slate-700 mb-2">Card Details</label>
         <div className="border border-slate-300 rounded-lg px-3 py-3">
           <CardElement
             options={{
               style: {
-                base: {
-                  fontSize: "14px",
-                  color: "#0f172a",
-                  "::placeholder": { color: "#94a3b8" },
-                },
+                base: { fontSize: "14px", color: "#0f172a", "::placeholder": { color: "#94a3b8" } },
               },
             }}
           />
@@ -109,13 +127,11 @@ function CardSetupStep({
           Your card is securely stored by Stripe. We never see or store your card number.
         </p>
       </div>
-
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
           {error}
         </div>
       )}
-
       <button
         type="submit"
         disabled={loading || !stripe}
@@ -124,6 +140,15 @@ function CardSetupStep({
         {loading ? "Setting up..." : "Authorize My Card"}
       </button>
     </form>
+  );
+}
+
+function CardSetupStep({ donorId, onComplete }: { donorId: string; onComplete: () => void }) {
+  if (isDemoMode) return <DemoCardStep donorId={donorId} onComplete={onComplete} />;
+  return (
+    <Elements stripe={stripePromise}>
+      <RealCardStep donorId={donorId} onComplete={onComplete} />
+    </Elements>
   );
 }
 
@@ -182,7 +207,9 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
 
     const data = await res.json();
     setDonorId(data.donorId);
-    (window as unknown as { __setupClientSecret?: string }).__setupClientSecret = data.clientSecret;
+    if (data.clientSecret) {
+      (window as unknown as { __setupClientSecret?: string }).__setupClientSecret = data.clientSecret;
+    }
     setStep("card");
     setLoading(false);
   }
@@ -194,6 +221,12 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
+      {isDemoMode && (
+        <div className="bg-amber-400 text-amber-950 text-xs font-semibold text-center py-2 px-4">
+          🧪 DEMO MODE — No real payments. For testing only.
+        </div>
+      )}
+
       <div className="border-b border-slate-200 px-6 py-4">
         <div className="font-bold text-slate-900">Save a Life</div>
         <div className="text-xs text-slate-500">Rescue a Soul</div>
@@ -253,9 +286,7 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Cell Phone
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Cell Phone</label>
                 <input
                   type="tel"
                   value={form.phone}
@@ -277,9 +308,7 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
                       min="1"
                       step="1"
                       value={form.perEmergencyAmount}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, perEmergencyAmount: e.target.value }))
-                      }
+                      onChange={(e) => setForm((f) => ({ ...f, perEmergencyAmount: e.target.value }))}
                       required
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
                       placeholder="100"
@@ -318,9 +347,7 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
                   <input
                     type="checkbox"
                     checked={form.allowPartialCharge}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, allowPartialCharge: e.target.checked }))
-                    }
+                    onChange={(e) => setForm((f) => ({ ...f, allowPartialCharge: e.target.checked }))}
                   />
                   <span className="text-sm text-slate-600">
                     Allow partial charges if my remaining limit is less than my per-emergency amount
@@ -333,9 +360,7 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
                   <input
                     type="checkbox"
                     checked={form.consentAuthorization}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, consentAuthorization: e.target.checked }))
-                    }
+                    onChange={(e) => setForm((f) => ({ ...f, consentAuthorization: e.target.checked }))}
                     className="mt-0.5"
                   />
                   <span className="text-xs text-slate-600">
@@ -384,9 +409,7 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
           )}
 
           {step === "card" && (
-            <Elements stripe={stripePromise}>
-              <CardSetupStep donorId={donorId} onComplete={() => setStep("done")} />
-            </Elements>
+            <CardSetupStep donorId={donorId} onComplete={() => setStep("done")} />
           )}
         </div>
       </div>

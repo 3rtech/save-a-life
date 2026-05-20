@@ -3,6 +3,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { createCustomer, createSetupIntent } from "@/lib/stripe";
 
+const isDemoMode = !process.env.STRIPE_SECRET_KEY;
+
 const schema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
@@ -29,9 +31,7 @@ export async function POST(req: NextRequest) {
   let donorGroupId: string | undefined;
 
   if (data.inviteToken) {
-    const invite = await db.donorInvite.findUnique({
-      where: { inviteToken: data.inviteToken },
-    });
+    const invite = await db.donorInvite.findUnique({ where: { inviteToken: data.inviteToken } });
     if (!invite || invite.status !== "active") {
       return NextResponse.json({ error: "Invalid or expired invite" }, { status: 400 });
     }
@@ -47,14 +47,20 @@ export async function POST(req: NextRequest) {
     if (group) donorGroupId = group.id;
   }
 
-  const customer = await createCustomer({
-    email: data.email,
-    name: `${data.firstName} ${data.lastName}`,
-    phone: data.phone,
-    metadata: { source: "save-a-life-signup" },
-  });
+  let stripeCustomerId: string | undefined;
+  let clientSecret: string | null = null;
 
-  const setupIntent = await createSetupIntent(customer.id);
+  if (!isDemoMode) {
+    const customer = await createCustomer({
+      email: data.email,
+      name: `${data.firstName} ${data.lastName}`,
+      phone: data.phone,
+      metadata: { source: "save-a-life-signup" },
+    });
+    stripeCustomerId = customer.id;
+    const setupIntent = await createSetupIntent(customer.id);
+    clientSecret = setupIntent.client_secret;
+  }
 
   const donor = await db.donor.create({
     data: {
@@ -62,7 +68,7 @@ export async function POST(req: NextRequest) {
       lastName: data.lastName,
       email: data.email,
       phone: data.phone,
-      stripeCustomerId: customer.id,
+      stripeCustomerId: stripeCustomerId ?? "demo_customer",
       perEmergencyAmountCents: data.perEmergencyAmountCents,
       monthlyCapCents: data.monthlyCapCents,
       annualCapCents: data.annualCapCents,
@@ -75,8 +81,5 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({
-    donorId: donor.id,
-    clientSecret: setupIntent.client_secret,
-  });
+  return NextResponse.json({ donorId: donor.id, clientSecret });
 }

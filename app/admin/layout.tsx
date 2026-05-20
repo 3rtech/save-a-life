@@ -53,7 +53,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
       </aside>
 
-      <main className="flex-1 p-8 overflow-auto">{children}</main>
+      <div className="flex-1 flex flex-col overflow-auto">
+        {!process.env.STRIPE_SECRET_KEY && (
+          <div className="bg-amber-400 text-amber-950 text-xs font-semibold text-center py-2 px-4 shrink-0">
+            🧪 DEMO MODE — Charges are simulated. No real payments will be processed.
+          </div>
+        )}
+        <main className="flex-1 p-8">{children}</main>
+      </div>
     </div>
   );
 }
