@@ -198,37 +198,49 @@ export default function DonorSignupForm({ inviteToken, groupSlug, prefill }: Pro
     setLoading(true);
     setError("");
 
-    const res = await fetch("/api/donors/start-signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        phone: form.phone || undefined,
-        perEmergencyAmountCents: Math.round(parseFloat(form.perEmergencyAmount) * 100),
-        monthlyCapCents: Math.round(parseFloat(form.monthlyCap) * 100),
-        annualCapCents: form.annualCap ? Math.round(parseFloat(form.annualCap) * 100) : null,
-        allowPartialCharge: form.allowPartialCharge,
-        inviteToken,
-        groupSlug,
-      }),
-    });
+    try {
+      const res = await fetch("/api/donors/start-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          phone: form.phone || undefined,
+          perEmergencyAmountCents: Math.round(parseFloat(form.perEmergencyAmount) * 100),
+          monthlyCapCents: Math.round(parseFloat(form.monthlyCap) * 100),
+          annualCapCents: form.annualCap ? Math.round(parseFloat(form.annualCap) * 100) : null,
+          allowPartialCharge: form.allowPartialCharge,
+          inviteToken,
+          groupSlug,
+        }),
+      });
 
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error ?? "Something went wrong.");
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError((data as { error?: string }).error ?? `Server error (${res.status}). Please try again.`);
+        setLoading(false);
+        return;
+      }
+
+      const { donorId: newDonorId, clientSecret } = data as { donorId: string; clientSecret: string | null };
+      if (!newDonorId) {
+        setError("Unexpected server response. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      setDonorId(newDonorId);
+      if (clientSecret) {
+        (window as unknown as { __setupClientSecret?: string }).__setupClientSecret = clientSecret;
+      }
+      setStep("card");
+    } catch (err) {
+      setError("Network error — please check your connection and try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const data = await res.json();
-    setDonorId(data.donorId);
-    if (data.clientSecret) {
-      (window as unknown as { __setupClientSecret?: string }).__setupClientSecret = data.clientSecret;
-    }
-    setStep("card");
-    setLoading(false);
   }
 
   if (step === "done") {
